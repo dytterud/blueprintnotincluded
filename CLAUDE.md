@@ -210,7 +210,7 @@ Uses MongoDB 8.0.23 locally and in CI (prod upgrade from 7.0.34 pending) with Mo
 ## Current Status
 
 - **Phase**: building-settings editing shipped (PR #212), + threshold-sensor (PR #225) and
-  Critter Sensor settings editing. Multilingual search + content
+  Critter Sensor and element-sensor / filter settings editing. Multilingual search + content
   locale fully shipped and activated in prod 2026-08-27 — status doc `spec/language-plan.md`,
   open items in `agent/TODO.md` (deferred plan items each have a stated trigger or were
   decided against, see `spec/archive/multilingual-search-plan.md` §8). Asset pipeline is
@@ -721,8 +721,8 @@ edits.
   hand-authored table (`SETTINGS_CATALOG`) of the automation-relevant keys (`Switch`,
   `LogicTimerSensor`, `LogicTimeOfDaySensor`, `LogicCounter`, `LogicGateBuffer`/`Filter`,
   `LogicRibbonReader`/`Writer`, `LogicCritterCountSensor`, `LogicAlarm`, `IThresholdSwitch`,
-  `IActivationRangeTarget`, `BuildingEnabledButton`, `Automatable`) with per-field type/unit/
-  bounds — cross-checked against the mod's real `DataTransferHelpers.cs`/`API_Methods.cs`
+  `IActivationRangeTarget`, `BuildingEnabledButton`, `Automatable`, `Filterable`) with per-field
+  type/unit/bounds — cross-checked against the mod's real `DataTransferHelpers.cs`/`API_Methods.cs`
   source (available locally as an additional working directory), not just the import spec's
   summary table. Every other key (`Door`, `Valve`, filters, `AccessControl`, `PixelPack`,
   skins, ...) is preserved opaquely and never rendered as anything but a count.
@@ -749,8 +749,10 @@ edits.
   `displayCyclesMode`: false, a display-only toggle with no simulation effect even if wrong)
   plus `IThresholdSwitch` on every threshold sensor (generated from `THRESHOLD_SENSORS`)
   plus `LogicCritterCountSensor` on itself (`countThreshold` 0 / `activateOnGreaterThan`,
-  `countCritters`, `countEggs` all true — the decompiled `[Serialize]` field initializers).
-  Every other key, including `LogicCounter` (whose `resetCountAtMax`/`advancedMode` real
+  `countCritters`, `countEggs` all true — the decompiled `[Serialize]` field initializers)
+  plus `Filterable` on the 5 element sensors + Gas/Liquid Filter (`{SelectedTag: 'Void'}` —
+  the game's own "nothing selected" default, so creating the key changes nothing until the
+  user picks). Every other key, including `LogicCounter` (whose `resetCountAtMax`/`advancedMode` real
   defaults aren't confirmed), stays edit-only-when-the-file-already-has-it: synthesizing an
   incomplete or wrong default for a gameplay-affecting field would silently change build
   behaviour on export. Extend the list only once a key's real in-game defaults are verified.
@@ -817,14 +819,16 @@ the bare float a meaning; conversion is affine both ways
 - **The stowaway `Switch` key.** Sensors extend `Switch`, so the mod's `Switch` handler
   matches them and a copied sensor carries `Switch.switchedOn` holding its *sampled output*
   at copy time, which the game overwrites within ~1.8s. `resolveSettingDescriptors` returns
-  `[]` for `Switch` on a threshold sensor (and on `LogicCritterCountSensor`): it round-trips,
-  but it is not a setting and is not counted as an unrecognized one either. The manual
-  `LogicSwitch` keeps its editable row.
+  `[]` for `Switch` whenever `suppressesStowawaySwitch(prefabId)` — every threshold sensor,
+  `LogicCritterCountSensor`, and the element sensors: it round-trips, but it is not a setting
+  and is not counted as an unrecognized one either. The manual `LogicSwitch` (and the two
+  filters, which have no `Switch`) keep their editable rows.
 - **"Not set" is a state, not a default.** The mod applies only the keys a file actually
   carries, so an absent canonical settings key leaves the built sensor on the game's own
   default — which is different from pinning it to any value. `primarySettingsKey(prefabId)`
   names that key: `IThresholdSwitch` for a threshold sensor (label = the measured quantity),
-  the own key for `LogicCritterCountSensor` (label "Critter count"), `null` otherwise. The
+  the own key for `LogicCritterCountSensor` (label "Critter count"), `Filterable` for an
+  element sensor / filter (label "Element"), `null` otherwise. The
   panel shows the absent state explicitly (a `Pressure — Not set` row rather than a bare
   button, via the `primary*` getters / `setPrimary`/`clearPrimary`), and
   `BlueprintItem.removeBuildingSetting` is the inverse of `addBuildingSetting` so the state is
@@ -852,10 +856,17 @@ the bare float a meaning; conversion is affine both ways
   600s cycle (the catalogue treats them as a 0–1 fraction shown as "% of cycle"), and that
   `IActivationRangeTarget.ActivateValue` is normalised 0–1 on batteries (the catalogue shows
   it raw). Both need an in-game check, not a guess between secondhand sources.
-- **Element sensors are a separate feature** — they have no threshold; their setting is a
-  `Filterable`/`SelectedTag` element *name* string (not the integer hash `selected_elements`
-  uses). `cell-element-picker` already filters by Gas/Liquid/Solid and emits a
-  `BuildableElement`, so it is the natural control when that ships.
+- **Element sensors + Gas/Liquid Filter** — no threshold; the setting is the mod's
+  `Filterable` key, one field `SelectedTag` — an element **id** string (`"Oxygen"`, not the
+  integer hash `selected_elements` uses); `NONE_TAG` (`"Void"`) is "nothing selected".
+  `FILTERABLE_BUILDINGS` (settings-catalog.ts) maps each of the 7 prefabs to its fixed
+  Gas/Liquid/Solid phase; `resolveSettingDescriptors` copies that onto the `SelectedTag`
+  descriptor as `elementForceTag`, which the panel passes to `app-cell-element-picker`'s
+  `forceTag` (reused inside a `p-popover`, same as `pipe-content`). `type: 'element'` is a
+  catalogue field type; `format-setting.ts` keeps the raw id (the frontend resolves the
+  display name via `BuildableElement.getElementById`, a non-throwing lookup). The 5 sensors
+  extend `Switch` (stowaway suppressed); the 2 filters don't. Picking "None" writes `Void`;
+  **Clear** removes the whole key.
 ### Session Management Files
 
 Check these files in `agent/` directory for current status:

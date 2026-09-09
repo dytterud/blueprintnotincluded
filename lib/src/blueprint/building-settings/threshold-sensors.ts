@@ -137,9 +137,11 @@ function germs(): ThresholdSensorSpec {
 //    IThresholdSwitch carrier, and radbolt thresholds demonstrably live on
 //    HighEnergyParticleSpawner.particleThreshold /
 //    HEPBattery.particleThreshold — different keys entirely.
-//  - Element sensors (LogicElementSensorGas and the conduit element sensors)
-//    have no threshold at all: their setting is a Filterable/SelectedTag
-//    element name.
+//  - Element sensors (LogicElementSensorGas/Liquid, the conduit element
+//    sensors) and Gas/Liquid Filter have no threshold: their setting is the
+//    mod's `Filterable` key (one element id string). Handled via
+//    FILTERABLE_BUILDINGS in settings-catalog.ts, rendered with the element
+//    picker; the stowaway Switch on the sensors is suppressed the same way.
 //  - LogicCritterCountSensor. It *is* an IThresholdSwitch carrier, but this
 //    table is for prefabs whose bare `Threshold` float needs a unit and a
 //    conversion — and the critter sensor's threshold is a plain count with no
