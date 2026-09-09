@@ -29,8 +29,10 @@ The GitHub repo is at https://github.com/blueprintnotincluded/blueprintnotinclud
 
 ### CI Workflows
 
-- `backend-test.yml` — runs on push/PR to master touching backend paths
-- `frontend-test.yml` — runs on push/PR to master touching frontend paths
+- `backend-test.yml` — runs on push to master when backend paths change, and on every pull
+  request to `master` (the `paths` filter only applies to the `push` trigger)
+- `frontend-test.yml` — runs on push to master when frontend paths change, and on every pull
+  request to `master` (same path-filter caveat)
 - `publish.yml` — deploys to DigitalOcean on push to master only
 
 ## Database Migrations
@@ -68,7 +70,9 @@ Rules:
 - Both `up` and `down` must be idempotent (safe to re-run if interrupted).
 - Never `$unset` the old field in the same operation that reads it as a filter.
 - Set new fields first, verify counts, clean up old fields in a separate migration.
-- Leave orphaned old fields in place; they disappear naturally once removed from the Mongoose schema.
+- Removing a field from the Mongoose schema does not remove it from existing documents —
+  it just stops being read/written. Leaving it in place is fine when that's intentional;
+  otherwise remove it from stored documents in a separate, verified cleanup migration.
 
 ### Credential rules
 
