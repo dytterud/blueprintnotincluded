@@ -866,7 +866,10 @@ the bare float a meaning; conversion is affine both ways
   catalogue field type; `format-setting.ts` keeps the raw id (the frontend resolves the
   display name via `BuildableElement.getElementById`, a non-throwing lookup). The 5 sensors
   extend `Switch` (stowaway suppressed); the 2 filters don't. Picking "None" writes `Void`;
-  **Clear** removes the whole key.
+  **Clear** removes the whole key. **Gotcha**: the export ships a real element whose id is
+  `Void`, so both `format-setting.ts` and the component's `elementLabel`/`rows` must test for
+  `NONE_TAG` *before* resolving the id to a `BuildableElement`, or a cleared filter reads
+  "Void" instead of "None".
 ### Session Management Files
 
 Check these files in `agent/` directory for current status:
