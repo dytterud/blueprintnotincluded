@@ -1,6 +1,6 @@
 import { describe, it } from 'mocha';
 import { expect } from 'chai';
-import { CameraService, Vector2 } from '../../lib/index';
+import { CameraService, Overlay, Vector2 } from '../../lib/index';
 
 // Pure camera math — no PIXI needed: the constructor only stores the
 // container reference, and pinchZoom/updateZoom/changeZoom never touch it.
@@ -84,5 +84,70 @@ describe('CameraService.pinchZoom', function () {
     camera.zoom(1, new Vector2(0, 0));
     for (let frame = 0; frame < 300; frame++) camera.updateZoom();
     expect(camera.currentZoom).to.be.closeTo(64, 1e-6);
+  });
+});
+
+describe('CameraService.setOverlayForItem', function () {
+  // Only the three members setOverlayForItem touches — a real OniItem would drag
+  // in the whole element/sprite/database bootstrap.
+  const fakeItem = (
+    overlay: Overlay,
+    opaqueIn: Overlay[]
+  ): any => ({
+    overlay,
+    isOverlayPrimary: (o: Overlay) => opaqueIn.includes(o),
+    isOverlaySecondary: (o: Overlay) => o === overlay,
+  });
+
+  // Building-layer device: opaque in its viewMode overlay (secondary) and in Base
+  // (primary), grey everywhere else — like LogicSwitch / a Logic*Sensor.
+  const automationDevice = fakeItem(Overlay.Automation, [Overlay.Base]);
+  // Wire: primary in its own overlay only — like LogicWire.
+  const automationWire = fakeItem(Overlay.Automation, [Overlay.Automation]);
+  // Plain building: Base only — like a Bed or a tile.
+  const plainBuilding = fakeItem(Overlay.Base, [Overlay.Base]);
+  // Gas building: opaque in Gas only.
+  const gasBuilding = fakeItem(Overlay.Gas, [Overlay.Gas]);
+
+  it('switches from the initial None overlay to the item overlay', function () {
+    const camera = makeCamera();
+    expect(camera.overlay).to.equal(Overlay.None);
+    camera.setOverlayForItem(automationDevice);
+    expect(camera.overlay).to.equal(Overlay.Automation);
+  });
+
+  it('does not leave the Automation overlay when copying an automation wire', function () {
+    const camera = makeCamera();
+    camera.overlay = Overlay.Automation;
+    camera.setOverlayForItem(automationWire);
+    expect(camera.overlay).to.equal(Overlay.Automation);
+  });
+
+  it('does not leave the Automation overlay when copying an automation device (secondary)', function () {
+    const camera = makeCamera();
+    camera.overlay = Overlay.Automation;
+    camera.setOverlayForItem(automationDevice);
+    expect(camera.overlay).to.equal(Overlay.Automation);
+  });
+
+  it('leaves the Automation overlay when copying a plain building it would grey out', function () {
+    const camera = makeCamera();
+    camera.overlay = Overlay.Automation;
+    camera.setOverlayForItem(plainBuilding);
+    expect(camera.overlay).to.equal(Overlay.Base);
+  });
+
+  it('switches to the item overlay when the current one would grey it out', function () {
+    const camera = makeCamera();
+    camera.overlay = Overlay.Power;
+    camera.setOverlayForItem(gasBuilding);
+    expect(camera.overlay).to.equal(Overlay.Gas);
+  });
+
+  it('treats the Room overlay as Base for the compatibility check', function () {
+    const camera = makeCamera();
+    camera.overlay = Overlay.Room;
+    camera.setOverlayForItem(plainBuilding); // opaque in Base -> Room counts as Base
+    expect(camera.overlay).to.equal(Overlay.Room);
   });
 });

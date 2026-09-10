@@ -126,6 +126,14 @@ export class CameraService {
   }
 
   setOverlayForItem(item: OniItem) {
+    // Copy-building ("B") and selection call this to reveal the picked item. If
+    // the overlay we're already in renders it opaque — its own viewMode overlay,
+    // or Base for a plain building — stay put; only switch when the current
+    // overlay would grey it out. Without this, copying/selecting a plain tile
+    // while in the Automation overlay flips the whole view to Base.
+    // Mirror BlueprintItem.cameraChanged's Room->Base collapse.
+    const current = this.overlay_ === Overlay.Room ? Overlay.Base : this.overlay_;
+    if (item.isOverlayPrimary(current) || item.isOverlaySecondary(current)) return;
     this.overlay = item.overlay;
   }
 
