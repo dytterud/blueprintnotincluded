@@ -324,28 +324,24 @@ export interface SettingTag {
   IsValid: boolean;
 }
 
-// `acceptedTagSet` is stored *serialized*, and two shapes exist in the wild:
+// `acceptedTagSet` is stored *serialized*, as a JSON string:
 //
-//   "acceptedTagSet": "[{\"Name\":\"HatchEgg\",\"IsValid\":true}]"   a JSON string
-//   "acceptedTagSet":  [{ "Name": "Cuprite", "IsValid": true }]      a real array
+//   "acceptedTagSet": "[{\"Name\":\"HatchEgg\",\"IsValid\":true}]"
 //
-// The mod writes the first (`JsonConvert.SerializeObject(tags)`) and reads it
-// back with `t1.Value<string>()`, which returns null when handed an array — so
-// a file carrying the decoded shape loses its filter silently on apply. Files
-// of both shapes exist, so we read either and always write the string.
+// The mod writes it with `JsonConvert.SerializeObject(tags)` and reads it back
+// with `t1.Value<string>()`, so the string is the only form it applies. We read
+// and write that form alone.
 //
 // Never throws: a malformed value reads as an empty set rather than breaking
 // the settings panel, matching how formatBuildingDataEntry treats a field whose
 // shape it does not recognize.
 export function decodeTagSet(raw: unknown): SettingTag[] {
-  let parsed: unknown = raw;
-  if (typeof raw == 'string') {
-    if (raw.trim() === '') return [];
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      return [];
-    }
+  if (typeof raw != 'string' || raw.trim() === '') return [];
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return [];
   }
   if (!Array.isArray(parsed)) return [];
 
@@ -517,13 +513,10 @@ for (const [prefabId, spec] of Object.entries(THRESHOLD_SENSORS)) {
 
 // Confirmed in game rather than guessed, which is what CREATABLE_SETTINGS
 // policy requires: a freshly built Conveyor Loader and Smart Storage Bin each
-// store `{"acceptedTagSet": [], "onlyFetchMarkedItems": false}`, and a loader
+// store an empty accepted set with `onlyFetchMarkedItems: false`, and a loader
 // whose filter panel was opened and closed without a selection stores exactly
 // the same. So an empty set is the game's own default and creating the key
 // changes nothing until the user picks a material.
-//
-// We write `'[]'` where the game wrote `[]` because encodeTagSet always emits
-// the string shape -- the one the mod can read back. See decodeTagSet.
 for (const prefabId of TREE_FILTERABLE_BUILDINGS) {
   const forPrefab = (CREATABLE_SETTINGS[prefabId] ??= {});
   forPrefab[TREE_FILTERABLE_KEY] = { acceptedTagSet: '[]', onlyFetchMarkedItems: false };

@@ -924,23 +924,15 @@ describe('element sensor buildingData round-trip', function () {
   });
 });
 
-// `acceptedTagSet` is stored serialized and two shapes exist in the wild: the
-// JSON string the mod writes and reads, and the decoded array a current build
-// produces. The mod reads the string only -- `t1.Value<string>()` returns null
-// for an array and the filter is lost on apply -- so we read either and always
-// write the string. These specs are that constraint, expressed as tests.
+// `acceptedTagSet` is stored serialized, as the JSON string the mod writes and
+// reads back with `t1.Value<string>()`. We follow that format exactly. These
+// specs are that constraint, expressed as tests.
 describe('TreeFilterable accepted-materials filter', function () {
   it('decodes the JSON-string shape the mod writes', () => {
     const raw = '[{"Name":"Cuprite","IsValid":true},{"Name":"Ice","IsValid":true}]';
     expect(decodeTagSet(raw)).to.deep.equal([
       { Name: 'Cuprite', IsValid: true },
       { Name: 'Ice', IsValid: true },
-    ]);
-  });
-
-  it('decodes the already-decoded array shape too', () => {
-    expect(decodeTagSet([{ Name: 'Cuprite', IsValid: true }])).to.deep.equal([
-      { Name: 'Cuprite', IsValid: true },
     ]);
   });
 
@@ -951,8 +943,7 @@ describe('TreeFilterable accepted-materials filter', function () {
     const entry = fixture.buildings
       .flatMap((b: any) => b.buildingData ?? [])
       .find((e: BniBuildingData) => e.Key == 'TreeFilterable' && e.Value?.acceptedTagSet);
-    // The fixture predates the decoded shape, so this is the string form, and
-    // it carries critter/seed tags rather than elements -- the case that stops
+    // It carries critter/seed tags rather than elements -- the case that stops
     // this being an element list.
     expect(typeof entry.Value.acceptedTagSet).to.equal('string');
     const names = decodeTagSet(entry.Value.acceptedTagSet).map(t => t.Name);
@@ -961,7 +952,7 @@ describe('TreeFilterable accepted-materials filter', function () {
   });
 
   it('never throws on a malformed or absent value', () => {
-    for (const raw of ['', 'not json', '{}', null, undefined, 42, [1, 2]])
+    for (const raw of ['', 'not json', '{}', null, undefined, 42, [1, 2], [{ Name: 'Ice' }]])
       expect(decodeTagSet(raw)).to.deep.equal([]);
   });
 
@@ -974,12 +965,6 @@ describe('TreeFilterable accepted-materials filter', function () {
     const encoded = encodeTagSet([{ Name: 'Cuprite', IsValid: true }]);
     expect(encoded).to.be.a('string');
     expect(JSON.parse(encoded)).to.deep.equal([{ Name: 'Cuprite', IsValid: true }]);
-  });
-
-  it('re-encodes a decoded-array value as a string, without losing it', () => {
-    expect(encodeTagSet(decodeTagSet([{ Name: 'Cuprite', IsValid: true }]))).to.equal(
-      '[{"Name":"Cuprite","IsValid":true}]'
-    );
   });
 
   it('formats the filter as its tag names', () => {
@@ -1013,7 +998,7 @@ describe('TreeFilterable round-trip', function () {
     item.buildingData = [
       {
         Key: 'TreeFilterable',
-        Value: { acceptedTagSet: [{ Name: 'Cuprite', IsValid: true }], onlyFetchMarkedItems: true },
+        Value: { acceptedTagSet: '[{"Name":"Cuprite","IsValid":true}]', onlyFetchMarkedItems: true },
       },
     ];
     item.setBuildingSetting(
@@ -1042,74 +1027,6 @@ describe('TreeFilterable round-trip', function () {
   // both store an empty acceptedTagSet, and so does a loader whose filter panel
   // was opened without a selection. So the empty default is the game's own and
   // creating the key changes nothing -- which is what lets it onto this list.
-  // A file can arrive carrying the decoded array shape, and setBuildingSetting
-  // replaces one field at a time -- so an untouched filter, or an edit to only
-  // the sibling boolean, would otherwise export an array the mod reads as null.
-  // Normalizing at the export boundary is what covers those paths.
-  it('exports an untouched array-shaped filter as a string', () => {
-    const item = BlueprintHelpers.createInstance('SolidConduitInbox')!;
-    item.buildingData = [
-      {
-        Key: 'TreeFilterable',
-        Value: {
-          acceptedTagSet: [{ Name: 'Cuprite', IsValid: true }],
-          onlyFetchMarkedItems: false,
-        },
-      },
-    ];
-
-    const blueprint = new Blueprint();
-    blueprint.blueprintItems = [item];
-    const value = blueprint
-      .toBniBlueprint('x')
-      .buildings![0].buildingData!.find(e => e.Key == 'TreeFilterable')!.Value;
-
-    expect(value.acceptedTagSet).to.equal('[{"Name":"Cuprite","IsValid":true}]');
-  });
-
-  it('exports it as a string when only the sibling boolean was edited', () => {
-    const item = BlueprintHelpers.createInstance('StorageLockerSmart')!;
-    item.buildingData = [
-      {
-        Key: 'TreeFilterable',
-        Value: {
-          acceptedTagSet: [{ Name: 'SandStone', IsValid: true }],
-          onlyFetchMarkedItems: false,
-        },
-      },
-    ];
-    item.setBuildingSetting('TreeFilterable', 'onlyFetchMarkedItems', true);
-
-    const blueprint = new Blueprint();
-    blueprint.blueprintItems = [item];
-    const value = blueprint
-      .toBniBlueprint('x')
-      .buildings![0].buildingData!.find(e => e.Key == 'TreeFilterable')!.Value;
-
-    expect(value.acceptedTagSet).to.equal('[{"Name":"SandStone","IsValid":true}]');
-    expect(value.onlyFetchMarkedItems).to.equal(true);
-  });
-
-  it('leaves the stored item untouched, so re-saving does not move its fingerprint', () => {
-    const item = BlueprintHelpers.createInstance('SolidConduitInbox')!;
-    item.buildingData = [
-      {
-        Key: 'TreeFilterable',
-        Value: {
-          acceptedTagSet: [{ Name: 'Cuprite', IsValid: true }],
-          onlyFetchMarkedItems: false,
-        },
-      },
-    ];
-    const blueprint = new Blueprint();
-    blueprint.blueprintItems = [item];
-    blueprint.toBniBlueprint('x');
-
-    expect(item.buildingData![0].Value.acceptedTagSet).to.deep.equal([
-      { Name: 'Cuprite', IsValid: true },
-    ]);
-  });
-
   it('creates the key with the empty default the game itself writes', () => {
     for (const prefabId of ['SolidConduitInbox', 'StorageLockerSmart']) {
       expect(creatableSettingsKeysFor(prefabId)).to.include('TreeFilterable');

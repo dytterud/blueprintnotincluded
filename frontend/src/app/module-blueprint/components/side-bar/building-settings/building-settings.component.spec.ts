@@ -851,7 +851,7 @@ describe("BuildingSettingsComponent", () => {
     setItem("StorageLockerSmart", [
       {
         Key: "TreeFilterable",
-        Value: { acceptedTagSet: [], onlyFetchMarkedItems: false },
+        Value: { acceptedTagSet: "[]", onlyFetchMarkedItems: false },
       },
     ]);
 
